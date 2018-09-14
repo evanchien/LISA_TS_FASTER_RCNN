@@ -13,12 +13,15 @@ from object_detection.utils import dataset_util
 
 
 flags = tf.app.flags
-flags.DEFINE_string('train_path', '', 'Path to output TFRecord')
-flags.DEFINE_string('valid_path', '', 'Path to output TFRecord')
+flags.DEFINE_string('train_path', '', 'Path to output training TFRecord')
+flags.DEFINE_string('eval_path', '', 'Path to output evaluation TFRecord')
 FLAGS = flags.FLAGS
 
+
+# training/evaluation ratio
 TRAIN_RATIO = 0.7
 
+# Be sure to modify the data path and the target csv file
 DATA_PATH = "/home/evanchien/lisa/training/"
 df = pd.DataFrame(pd.read_csv(DATA_PATH+'/allTrainingAnnotations.csv',sep=',|;', header=0, engine='python'))
 annotation = []
@@ -30,15 +33,13 @@ annotation_dict = {k:v for v, k in enumerate(annotation)}
 
 
 
-# # Label_map generator
-
-# with open ("/home/evanchien/lisa/label_map.pbtxt", 'w') as file:
-#     for key in annotation_dict.keys():
-#         file.write("item {\n  id: %i\n" %(annotation_dict[key]+1))
-#         file.write("  name: '%s'\n}\n\n" %key)
-
 
 class single_record:
+    '''
+    A class for the tf_example protos.
+    The image data is not loaded and the values are not featurized
+    '''
+
     def __init__(self):
         self.xmins = []
         self.xmaxs = []
@@ -58,6 +59,16 @@ class single_record:
 
 
 def record_generator(records, writer):
+    '''
+    Create tf records from tf_example prototypes.
+    
+    Param :
+        records - a list of tf_example protos (class single_record)
+        writer - the corresponding tf.writer mapped with the flags
+    
+    Return :
+        None but creating two tfrecords file
+    '''
     image_format ='png'.encode()
 
     for record in records:
@@ -89,6 +100,12 @@ def record_generator(records, writer):
 
 
 def img_to_list():
+    '''
+    Read in - the pandas DataFrame of annotations and file information (Made global here. Can be revised as a real read-in param)
+    Return - a list of tf_example prototypes.
+    
+    '''
+
     record_list =[]
     item_cnt, _ = df.shape
     current_file = df['Filename'][0]
@@ -120,21 +137,25 @@ def img_to_list():
 def main(_):
     
     
-    # Label_map generator
+    
+    # Label_map generation 
+    # Exporting the label_map.pbtxt with the dictionary previous generated.
+    # Uncomment if needed
 
     # with open ("/home/evanchien/lisa/label_map.pbtxt", 'w') as file:
     #     for key in annotation_dict.keys():
     #         file.write("item {\n  id: %i\n" %(annotation_dict[key]+1))
     #         file.write("  name: '%s'\n}\n\n" %key)
     
+
     sample_list= []
     sample_list = img_to_list()
-    print("sample list size = ", len(sample_list))
+    # print("sample list size = ", len(sample_list))
     train_size = int(len(sample_list)*TRAIN_RATIO)
     shuffle(sample_list)
     training_list = sample_list[:train_size]
-    validation_list = sample_list[train_size:]
-    
+    eval_list = sample_list[train_size:]
+    print("Training/Evaluation records generating...")
     
 
     train_writer = tf.python_io.TFRecordWriter(FLAGS.train_path)
@@ -142,8 +163,11 @@ def main(_):
 
     # DATA_PATH = "/home/evanchien/lisa/training/"
     # df = pd.DataFrame(pd.read_csv(DATA_PATH+'/allTrainingAnnotations.csv',sep=',|;', header=0, engine='python'))
-    valid_writer = tf.python_io.TFRecordWriter(FLAGS.valid_path)
-    record_generator(validation_list, valid_writer)
+    print("Training record created")
+    eval_writer = tf.python_io.TFRecordWriter(FLAGS.eval_path)
+    record_generator(eval_list, eval_writer)
+    print("Evaluation record created")
+    print("All done!")
 
     
 
